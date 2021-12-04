@@ -2,6 +2,7 @@ const { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain, dialog } = require
 const storage = require('electron-json-storage');
 const path = require('path');
 const { objectIsNotEmpty, getDeathDate } = require('./calculations');
+const increments = require('./increments');
 require('electron-reload')(__dirname);
 
 
@@ -48,11 +49,12 @@ ipcMain.on('setDate',
 
 ipcMain.on('clearDate',
     /**
-     * Clears the date stored (called from renderer)
+     * Clears all date stored (called from renderer)
      * @param {Event} event 
      */
     (event) => {
         storage.set('date', {});
+        storage.set('increment', {});
     }
 );
 
@@ -64,9 +66,6 @@ ipcMain.on('getDate',
      */
     (event) => {
         storage.get('date', (err, data) => {
-            if (err)
-                event.reply('getDate', {err: true});
-
             if (objectIsNotEmpty(data))
                 event.reply('getDate', {err: false, data: data});
             event.reply('getDate', {err: true});
@@ -85,11 +84,18 @@ const countdownTray = () => {
     let tray = new Tray(nativeImage.createFromPath(iconPath));
     tray.setToolTip('Test')
 
+    // Set increment
+    storage.get('increment', (err, data) => {
+        if (objectIsNotEmpty(data))
+            increment = data.increment;
+        else 
+            storage.set('increment', {increment: increments.Seconds});
+    });
 
     // Menubar:
     // - Change date - runs the change date GUI
     // - Quit - quits the app
-    const contextMenu = Menu.buildFromTemplate([
+    let menubarTemplate = [
         {
             label: 'Change date', click: async () => {
                 changeDate();
@@ -98,8 +104,23 @@ const countdownTray = () => {
             }
         },
         { type: 'separator' },
+        {
+            label: 'Increment',
+            submenu: Object.keys(increments).map((increment) = (increment) => {
+                return {
+                    label: increment,
+                    type: 'radio',
+                    checked: storage.getSync('increment').increment === increments[increment],
+                    click: async () => {
+                        storage.set('increment', {increment: increments[increment]});
+                    }
+                }
+            })
+        },
+        { type: 'separator' },
         { label: 'Quit', click: app.quit }
-    ]);
+    ];
+    let contextMenu = Menu.buildFromTemplate(menubarTemplate);
     tray.setContextMenu(contextMenu);
 
     // Show on hover
@@ -111,7 +132,7 @@ const countdownTray = () => {
             let data = storage.getSync('date');
             let bday = data.birthday;
             let dday = getDeathDate(bday);
-            let timeUntilDeath = Math.round(((new Date(dday)).getTime() / 1000) - ((new Date()).getTime() / 1000));
+            let timeUntilDeath = Math.round(Math.round(((new Date(dday)).getTime() / 1000) - ((new Date()).getTime() / 1000)) / storage.getSync('increment').increment);
 
             tray.setTitle(String(timeUntilDeath));
         } catch {
