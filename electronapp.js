@@ -3,7 +3,6 @@ const storage = require('electron-json-storage');
 const path = require('path');
 const { objectIsNotEmpty, getDeathDate } = require('./calculations');
 const increments = require('./increments');
-require('electron-reload')(__dirname);
 
 
 /**
